@@ -1,0 +1,339 @@
+===============================================================================
+                  VECINDAPP SEGURO - AGENTE DE DETECCION
+                            MANUAL DE USO
+===============================================================================
+
+  Analiza videos de camaras de seguridad y genera alertas cuando detecta
+  indicios de un atraco: armas, violencia fisica, forcejeo o sometimiento.
+
+  Combina cuatro señales: deteccion de personas, deteccion de armas,
+  clasificacion de violencia y analisis de postura.
+
+
+===============================================================================
+ 1. LO ESENCIAL - COMO EJECUTARLO
+===============================================================================
+
+  PASO 1   Copia tus videos a la subcarpeta:   videos\entrada\
+
+  PASO 2   Abre PowerShell, situate en la carpeta del proyecto y ejecuta:
+
+           cd <ruta donde clonaste VecindApp_Deteccion>
+           .venv\Scripts\python.exe analizar.py
+
+  PASO 3   Espera. Veras el avance en pantalla. Al terminar, revisa:
+             videos\salida\   -> los videos con las marcas dibujadas
+             eventos\         -> las alertas (JSON) y sus clips
+
+  Eso es todo. No hay nada que configurar para empezar.
+
+  Formatos aceptados: .mp4  .avi  .mov  .mkv  .m4v  .wmv  .mpg  .mpeg
+
+
+===============================================================================
+ 2. OPCIONES DEL COMANDO
+===============================================================================
+
+  Analizar UN solo video
+  ----------------------
+    .venv\Scripts\python.exe analizar.py --video videos\entrada\Video5.mp4
+
+  Analizar solo un tramo (del segundo 30 al 90)
+  ---------------------------------------------
+    .venv\Scripts\python.exe analizar.py --video videos\entrada\x.mp4 --inicio 30 --fin 90
+
+  Ir mas rapido (no genera el video anotado)
+  ------------------------------------------
+    .venv\Scripts\python.exe analizar.py --sin-video
+
+    Util con videos largos, cuando solo te interesan el CSV y las alertas.
+    Tambien ahorra bastante espacio en disco.
+
+  Usar otra configuracion
+  -----------------------
+    .venv\Scripts\python.exe analizar.py --config mi_config.yaml
+
+  Medir la maquina (latencias reales y presupuesto de CPU)
+  --------------------------------------------------------
+    .venv\Scripts\python.exe benchmark.py
+
+    Corre esto si cambias de computadora, para saber si aguanta.
+
+
+===============================================================================
+ 3. QUE VIDEOS CONVIENE PONER
+===============================================================================
+
+  DURACION
+    Lo ideal son clips de 30 segundos o mas.
+    Motivo: el modelo de violencia necesita 4.8 segundos de historial antes de
+    poder emitir su primer juicio. En un clip de 7 segundos solo alcanza a
+    evaluar 2 o 3 ventanas.
+
+  DOS TIPOS, Y LOS DOS HACEN FALTA
+    (a) INCIDENTES      atracos, forcejeos, armas visibles.
+    (b) OPERACION NORMAL  atencion al publico, cobro, clientes entrando,
+                          reposicion de estanteria.
+
+    Los normales NO son opcionales. Son los unicos que permiten medir cuantas
+    FALSAS ALARMAS produce el sistema. Hoy ese dato no existe, y es lo que
+    bloquea el paso a produccion.
+
+  CONSEJO
+    Un video largo con contenido mixto (tramos tranquilos + el incidente) vale
+    mas que cinco clips cortos que son puro incidente.
+
+
+===============================================================================
+ 4. QUE SE GENERA Y DONDE
+===============================================================================
+
+  videos\salida\<nombre>_anotado.mp4
+    El video con todo dibujado encima. Para revisar a ojo.
+
+  videos\salida\<nombre>_ventanas.csv
+    UNA FILA POR SEGUNDO con todas las señales, disparen o no.
+    Este es el archivo importante para calibrar. Se abre con Excel.
+
+  eventos\<video>__<tiempo>__<tipo>__c<confianza>.json
+    La alerta, con el formato exacto que se enviaria a la API.
+
+  eventos\<video>__<tiempo>__<tipo>__c<confianza>.mp4
+    El clip de evidencia: 10 segundos antes y 5 despues del evento.
+
+  Ejemplo de nombre:
+    Video5__00m07s__posible-atraco-multiple__c78.json
+      |        |              |               |
+      |        |              |               +-- confianza 78%
+      |        |              +------------------ tipo de alerta
+      |        +--------------------------------- minuto 00, segundo 07
+      +------------------------------------------ video de origen
+
+  NOTA: volver a analizar un video REEMPLAZA sus eventos anteriores, no los
+  duplica. Los nombres son deterministas a proposito.
+
+
+===============================================================================
+ 5. COMO LEER EL VIDEO ANOTADO
+===============================================================================
+
+  PANEL SUPERIOR
+  --------------
+    00:06.2   EVALUANDO
+    Personas: 2  (3 en cuadro)      Atacantes: 1
+    Arma: CONFIRMADA 71%    Violencia: 96%    Señales: APUNTANDO
+
+    Tiempo       posicion dentro del video (minutos:segundos)
+
+    Estado       VIGILANDO  tienda en reposo, solo se cuenta gente (barato)
+                 ACTIVIDAD  entro alguien, se encienden armas y seguimiento
+                 EVALUANDO  hay indicios, se enciende el modelo de violencia
+
+    Personas     conteo que usan las reglas (filtrado por persistencia).
+                 Entre parentesis, las cajas visibles en ese instante.
+                 Si no coinciden es normal: el filtro descarta ruido.
+
+    Atacantes    personas menos el que atiende la tienda (siempre hay uno).
+
+    Arma         "sin detectar" / "indicio NN%" / "CONFIRMADA NN%"
+
+    Violencia    probabilidad del modelo. En rojo si supera el umbral.
+
+    Señales      que señales de comportamiento estan activas.
+
+
+  LO QUE SE DIBUJA SOBRE LA IMAGEN
+  --------------------------------
+    Caja VERDE            una persona detectada. Lleva un numero de
+                          seguimiento estable ("Persona 3").
+
+    Caja ROJA fina        indicio de arma, aun sin confirmar.
+    Caja ROJA gruesa      ARMA CONFIRMADA. Dice cuantas veces se vio.
+
+    Lineas claras         el esqueleto (17 puntos clave por persona).
+
+    FLECHA MAGENTA        alguien esta APUNTANDO a otra persona.
+                          Es la señal mas especifica del sistema.
+
+    Etiqueta amarilla     MANOS ARRIBA (sometimiento).
+
+    Recuadro NARANJA      zona que se esta reinspeccionando con aumento
+      a trazos            porque ahi se vio algo sospechoso.
+
+    Recuadro CIAN         la zona que mira el modelo de violencia.
+      a trazos            OJO: no es una deteccion, es el area de analisis.
+                          Si la agresion ocurre fuera de ese recuadro, el
+                          modelo no la ve.
+
+    Banda roja abajo      la alerta emitida.
+
+
+===============================================================================
+ 6. LOS TIPOS DE ALERTA
+===============================================================================
+
+  ARMA SOSPECHOSA                 gravedad media
+    Se confirmo un arma, pero sin violencia acompañante.
+
+  VIOLENCIA FISICA                gravedad media
+    Agresion, forcejeo o sometimiento, sin arma confirmada.
+
+  POSIBLE ATRACO                  gravedad ALTA
+    Arma (o gesto de apuntar) junto con violencia. Un agresor.
+
+  POSIBLE ATRACO CON VARIAS       gravedad ALTA
+  PERSONAS
+    Lo mismo, con dos o mas atacantes.
+
+  Ninguna alerta se dispara por una sola deteccion suelta: todas exigen que la
+  señal se sostenga en el tiempo.
+
+  Tras emitir una alerta hay 30 segundos de silencio para el mismo tipo, para
+  no inundar al usuario. Si la situacion EMPEORA (por ejemplo de "arma
+  sospechosa" a "posible atraco"), la alerta sale igual aunque sea antes.
+
+
+===============================================================================
+ 7. COMO LEER EL CSV
+===============================================================================
+
+  Una fila por segundo. Las columnas mas utiles:
+
+    t                    segundo del video
+    estado               S0 vigilando / S1 actividad / S2 evaluando
+    people_count         personas (con filtro de persistencia)
+    atacantes            people_count menos el que atiende
+
+    arma_sostenida       1 = arma confirmada
+    arma_conf            confianza maxima del arma
+    arma_dets            cuantas veces se ha visto
+
+    p_fight_centro       probabilidad de violencia (la que decide)
+    p_fight_personas     la misma, recortando al grupo de personas.
+                         Se calculan las dos para poder compararlas.
+
+    cin_proximidad       \
+    cin_agitacion         > señales de movimiento
+    cin_aspecto          /
+    cin_n                cuantas estan activas (hacen falta 2 para alertar)
+
+    pose_apuntar         1 = alguien apunta a otra persona
+    pose_manos_arriba    1 = alguien con las manos en alto
+    pose_en_suelo        1 = alguien en el suelo
+
+    evento               el tipo de alerta, si se emitio en ese segundo
+
+  PARA CALIBRAR
+    Abre el CSV, ordena por p_fight_centro o por arma_conf, y mira el video
+    anotado en esos segundos. Asi se ve si un umbral esta alto o bajo.
+
+
+===============================================================================
+ 8. AJUSTES MAS COMUNES  (archivo config.yaml)
+===============================================================================
+
+  Cada valor del config.yaml lleva escrito al lado el dato que lo justifica.
+  Leelo antes de cambiar nada.
+
+  DEMASIADAS FALSAS ALARMAS
+    armas:      conf              sube de 0.20 a 0.30
+    armas:      trazas:
+                  min_detecciones sube de 3 a 4
+    violencia:  umbral_fight      sube de 0.75 a 0.85
+    fusion:     cooldown_seg      sube de 30 a 60
+
+  SE LE ESCAPAN COSAS
+    armas:      trazas:
+                  min_conf_pico   baja de 0.45 a 0.35
+    violencia:  umbral_fight      baja de 0.75 a 0.65
+    violencia:  periodo_seg       baja de 1.0 a 0.5  (mas lento)
+
+  VA MUY LENTO
+    personas:   activo: fps       baja de 5 a 4
+    armas:      activo: imgsz     baja de 640 a 512
+    armas:      seguimiento:
+                  tta             pon false  (ahorra mucho, detecta menos)
+    violencia:  periodo_seg       sube de 1.0 a 2.0
+
+  SI HAY DOS PERSONAS ATENDIENDO LA TIENDA
+    fusion:     atendientes_fijos pon 2
+
+  NO TOCAR SIN REENTRENAR
+    violencia:  stride_sobre_base   (= 3)
+    violencia:  frames_secuencia    (= 16)
+    Esos dos reproducen el muestreo con el que se entreno el modelo. Cambiarlos
+    lo saca de su distribucion y empeora los resultados.
+
+
+===============================================================================
+ 9. PROBLEMAS FRECUENTES
+===============================================================================
+
+  "No hay videos"
+    Los archivos no estan en videos\entrada\ o tienen una extension distinta
+    a las aceptadas.
+
+  "ERROR en <archivo>: No se pudo abrir el video"
+    Archivo corrupto o con un codec raro. El lote sigue con los demas.
+    Prueba a reconvertirlo.
+
+  No se puede borrar un video de salida
+    Lo tienes abierto en un reproductor. Cierralo y vuelve a intentar.
+
+  "violencia: 0 evaluaciones"
+    El video es mas corto que los 4.8 segundos que necesita el modelo, o nunca
+    se llego al estado EVALUANDO.
+
+  0 eventos y no sabes por que
+    Mira el bloque "diagnostico" que se imprime al final de cada video. Dice
+    cuantas ventanas tuvieron deteccion de arma, cuantas evaluaciones de
+    violencia hubo y hasta donde llegaron. Si todo esta en cero, el pipeline
+    no vio nada; si hay valores altos que no llegaron al umbral, es cuestion
+    de calibracion.
+
+  Se llena el disco
+    Los videos anotados pesan. Borra videos\salida\ y eventos\ de vez en
+    cuando, o usa --sin-video.
+
+  Tildes raras en pantalla
+    Es la consola de Windows, no los archivos. Los .txt y .csv estan bien.
+
+
+===============================================================================
+ 10. MAPA DE ARCHIVOS
+===============================================================================
+
+  analizar.py        el comando que ejecutas
+  benchmark.py       mide la maquina
+  config.yaml        TODOS los ajustes, con su justificacion al lado
+  MANUAL.txt         este archivo
+  README.md          bitacora tecnica: de donde sale cada modelo, que se midio
+  requirements.txt   dependencias
+
+  models\            los cuatro pesos (personas, pose, armas, violencia)
+  src\               los modulos del pipeline
+  videos\entrada\    <-- AQUI VAN TUS VIDEOS
+  videos\salida\     videos anotados y CSV
+  eventos\           alertas y clips de evidencia
+
+
+===============================================================================
+ 11. LIMITACIONES QUE CONVIENE CONOCER
+===============================================================================
+
+  * El sistema es un APOYO A LA DECISION. No confirma un delito: genera una
+    alerta para que una persona autorizada revise el clip y decida.
+
+  * El detector de armas tiene un recall del 73.9% sobre su propio conjunto
+    de prueba, y sobre video real solo ve el arma en el 14-29% de los
+    fotogramas. Por eso existen las trazas y el gesto de apuntar.
+
+  * El modelo de violencia fue entrenado para distinguir "pelea" de "no
+    pelea". Un atraco donde la victima obedece sin forcejeo puede no
+    registrarse como pelea. Para eso estan la capa de postura y la cinematica.
+
+  * La tasa de FALSAS ALARMAS no esta medida todavia, porque no se dispone de
+    video de operacion normal. Es lo que falta antes de instalarlo en una
+    tienda real.
+
+===============================================================================

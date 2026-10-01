@@ -1,0 +1,21 @@
+{
+  "event_id": "evt-cam-01-20261001-032822-873",
+  "business_id": "business-001",
+  "camera_id": "cam-01",
+  "event_type": "suspicious_weapon",
+  "severity": "medium",
+  "confidence": 0.7127,
+  "detected_at": "2026-10-01T03:28:22Z",
+  "zone": null,
+  "people_count": 3,
+  "detections": [
+    {
+      "type": "weapon",
+      "confidence": 0.7127
+    }
+  ],
+  "evidence_url": "C:\\Users\\asus\\Downloads\\PROYECTO_ME\\VecindApp_Deteccion\\eventos\\Video4__00m03s__arma-sospechosa__c71.mp4",
+  "review_status": "pending_review",
+  "_t_video_seg": 3.0,
+  "_atacantes": 2
+}

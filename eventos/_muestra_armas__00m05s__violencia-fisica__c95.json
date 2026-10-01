@@ -1,0 +1,21 @@
+{
+  "event_id": "evt-cam-01-20261001-032735-978",
+  "business_id": "business-001",
+  "camera_id": "cam-01",
+  "event_type": "physical_violence",
+  "severity": "medium",
+  "confidence": 0.9524,
+  "detected_at": "2026-10-01T03:27:35Z",
+  "zone": null,
+  "people_count": 2,
+  "detections": [
+    {
+      "type": "physical_violence",
+      "confidence": 0.9524
+    }
+  ],
+  "evidence_url": "C:\\Users\\asus\\Downloads\\PROYECTO_ME\\VecindApp_Deteccion\\eventos\\_muestra_armas__00m05s__violencia-fisica__c95.mp4",
+  "review_status": "pending_review",
+  "_t_video_seg": 5.0,
+  "_atacantes": 1
+}

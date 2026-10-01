@@ -1,0 +1,15 @@
+# Entorno virtual: ~1 GB, se reconstruye con requirements.txt
+.venv/
+__pycache__/
+*.pyc
+
+# Artefactos temporales
+*.tmp
+~$*
+
+# NOTA: a diferencia de lo habitual, este repositorio SI versiona:
+#   - models/     los pesos de los 4 modelos (78 MB)
+#   - videos/     el material de prueba y los videos anotados
+#   - eventos/    las alertas generadas y sus clips de evidencia
+# Se incluyen a proposito para que el equipo disponga de la evidencia
+# completa al clonar. Ver AVISOS.md sobre la procedencia de ese material.

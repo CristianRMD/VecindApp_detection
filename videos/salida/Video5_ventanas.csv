@@ -1,0 +1,9 @@
+t,estado,people_count,atacantes,arma_sostenida,arma_conf,arma_dets,p_fight_centro,p_fight_personas,cin_proximidad,cin_agitacion,cin_aspecto,cin_n,cin_vel_max,cin_umbral_vel,pose_apuntar,pose_manos_arriba,pose_en_suelo,pose_amenaza,pose_n_apuntando,pose_n_manos_arriba,evento
+0.0,S0,1,0,0,0.3285,1,,,0,0,0,0,0.0,0.6,0,0,0,0,0,0,
+1.0,S2,0,0,0,0.3285,1,,,0,0,0,0,0.0,0.6,0,0,0,0,0,0,
+2.0,S2,2,1,0,0.3285,1,,,0,0,0,0,0.545,0.6,0,0,0,0,0,0,
+3.0,S2,2,1,0,0.3285,3,,,0,0,0,0,0.102,0.6,0,0,0,0,0,0,
+4.0,S2,2,1,0,0.3285,3,,,0,0,0,0,0.035,0.6,0,0,0,0,0,0,
+5.0,S2,3,2,0,0.3285,4,0.1489,0.6866,0,0,0,0,0.393,0.6,0,0,0,0,1,1,
+6.0,S2,3,2,1,0.6529,7,0.596,0.9191,1,0,0,1,0.232,0.6,1,0,0,0,1,0,suspicious_weapon
+7.0,S2,2,1,1,0.6529,11,0.7467,0.9469,0,0,0,0,0.341,0.6,0,0,0,0,0,0,

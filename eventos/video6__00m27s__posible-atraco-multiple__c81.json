@@ -1,0 +1,25 @@
+{
+  "event_id": "evt-cam-01-20261001-032910-496",
+  "business_id": "business-001",
+  "camera_id": "cam-01",
+  "event_type": "possible_multiple_robbery",
+  "severity": "high",
+  "confidence": 0.8088,
+  "detected_at": "2026-10-01T03:29:10Z",
+  "zone": null,
+  "people_count": 3,
+  "detections": [
+    {
+      "type": "weapon",
+      "confidence": 0.7318
+    },
+    {
+      "type": "physical_violence",
+      "confidence": 0.9242
+    }
+  ],
+  "evidence_url": "C:\\Users\\asus\\Downloads\\PROYECTO_ME\\VecindApp_Deteccion\\eventos\\video6__00m27s__posible-atraco-multiple__c81.mp4",
+  "review_status": "pending_review",
+  "_t_video_seg": 27.03,
+  "_atacantes": 2
+}

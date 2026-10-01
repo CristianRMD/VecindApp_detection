@@ -1,0 +1,16 @@
+# Instalar torch/torchvision CPU primero, desde el indice de PyTorch:
+#   pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+#   pip install -r requirements.txt
+
+ultralytics>=8.3.0
+opencv-python>=4.8.0
+lap>=0.5.12
+PyYAML>=6.0
+numpy>=1.24
+
+# NO se incluyen (venian del repo de violencia y no se usan en inferencia):
+#   pytube, pytube3  -> abandonados
+#   moviepy          -> el repo usa `from moviepy.editor import *`, eliminado en moviepy 2.x
+#   albumentations   -> sus 3 operaciones (resize / center-crop / normalize) se
+#                       reimplementan con cv2 + numpy, sin dependencia extra
+#   IPython, pandas  -> solo para notebooks

@@ -1,0 +1,270 @@
+# =============================================================================
+#  VecindApp Seguro - Agente local de deteccion
+#  Los valores de fps / imgsz salen de benchmark.py. Ajustar segun la maquina.
+# =============================================================================
+
+fuente:
+  fps_base: 10                 # tasa de procesamiento (muestreo por TIMESTAMP)
+  buffer_segundos: 20          # buffer circular en RAM: evidencia + ventana de violencia
+  ancho_buffer: 640            # los frames se guardan reescalados a este ancho
+                               # (a 1080p sin reescalar, 20 s serian ~1.2 GB de RAM)
+
+# -----------------------------------------------------------------------------
+# PERSONAS  (YOLOv8n COCO, clase 0) + ByteTrack
+# -----------------------------------------------------------------------------
+personas:
+  modelo: models/person_yolov8n.pt          # S0: solo contar, el mas barato
+  modelo_pose: models/person_yolov8n-pose.pt
+  usar_pose: true                           # S1+: mismas cajas + 17 puntos clave
+  clase_persona: 0
+
+  # --- S0 VIGILIA: solo CONTAR cajas. Sin tracker: no hay nada que seguir. ---
+  vigilia:
+    fps: 2
+    imgsz: 416
+    conf: 0.40
+    muestras_ventana: 3        # 2 de 3 muestras con >=2 personas -> S1
+    muestras_confirmacion: 2
+
+  # --- S1+ ACTIVIDAD: tracking completo (reglas validadas en ME-personas) ---
+  activo:
+    fps: 5                     # piso para que la asociacion IoU de ByteTrack funcione
+    imgsz: 416
+    conf: 0.40
+    tracker: bytetrack.yaml
+    ventana_seg: 2.0
+    persistencia_min: 0.6      # fraccion minima de la ventana para contar un track
+    dedupe_gap_seg: 1.5
+    dedupe_dist_px: 80
+
+  histeresis_salida_seg: 10    # tiempo sin >=2 personas antes de volver a S0
+
+# -----------------------------------------------------------------------------
+# ARMAS  (YOLOv8s fine-tuned)
+#
+#   OJO: este checkpoint tiene UNA SOLA CLASE -> names = {0: 'weapon'}
+#        NO tiene 'pistol' / 'knife' por separado; no se pueden aplicar
+#        umbrales por clase.
+#   Metricas reales sobre su propio val (Visualization/ del repo original):
+#        mAP@0.5 = 0.797 | P = 85.6% | R = 73.9% | TP 190 / FP 32 / FN 67
+#        La curva PR tiene un CODO: P~1.0 hasta R~0.6, luego se desploma.
+# -----------------------------------------------------------------------------
+armas:
+  modelo: models/weapon_yolov8s.pt
+  # Calibrado contra los videos de prueba (ver README, seccion de calibracion).
+  # Las confianzas reales sobre armas VERDADERAS caen entre 0.45 y 0.74, no muy
+  # por encima; 0.45 dejaba fuera la pistola de Video5. La persistencia es la
+  # que protege contra falsos positivos, no el umbral.
+  # Umbral BAJO a proposito: no es para alertar, es para alimentar el
+  # seguimiento de trazas. A 0.45 el arma aparece en el 14-29% de los cuadros;
+  # a 0.25 aparece en el 43-95%. Quien decide es la traza, no el umbral.
+  conf: 0.20
+  conf_dibujo: 0.35            # por debajo de esto no se dibuja (seria ruido)
+
+  # Agrupa detecciones sucesivas por cercania espacial. Una traza se confirma
+  # por tres condiciones a la vez, no por un conteo ciego. Mas sensible (usa
+  # detecciones debiles que antes se tiraban) y mas especifica (el ruido esta
+  # disperso y no forma trazas coherentes).
+  trazas:
+    activo: true
+    # Fraccion del ancho del cuadro, no pixeles: 140 px no significan lo mismo
+    # a 854 que a 1920. Ademas se ensancha con el tiempo sin ver la traza.
+    dist_max_frac: 0.12
+    # 3 s y no 2: el arma se ocluye tras un brazo o un mostrador y reaparece.
+    # Con 2 s la traza moria entre vistas en Video1 y Video3, donde las
+    # detecciones llegan muy espaciadas.
+    ttl_seg: 3.0
+    min_detecciones: 3         # el guardian contra el ruido
+    min_conf_media: 0.30       # con un piso de 0.20, una media de 0.30 ya es senal
+    min_conf_pico: 0.45        # al menos una vista decente
+
+  # Respaldo por si se desactiva el seguimiento de trazas
+  persistencia_detecciones: 2
+  persistencia_ventana_seg: 5.0
+
+  # Latido en S0: cubre "el que atiende salio al fondo" y "arma sobre el mostrador"
+  latido:
+    activo: true
+    periodo_seg: 5
+    imgsz: 416
+
+  # En S1+: recortes por persona. Sube la resolucion EFECTIVA sobre el arma
+  # (~2x frente al cuadro completo): un cuchillo a 3 m mide 4-10 px.
+  # imgsz 640 y no 320: la sensibilidad del modelo depende muchisimo de la
+  # escala del arma en pixeles, y de forma NO monotona. Medido sobre los videos
+  # de prueba (conf maxima alcanzada):
+  #     cuadro completo @416 : V5 0.43  V3 0.62  V2 0.49
+  #     cuadro completo @1280: V5 0.74  V3 0.58  V2 0.57
+  #     recortes persona @320: V5 0.54  V3 0.18  V2 0.58
+  #     recortes persona @640: V5 0.63  V3 0.52  V2 0.61   <- el unico
+  #                                                           consistente
+  # Recortar a la persona normaliza la escala aparente del arma, que es
+  # justamente lo que elimina esa dependencia.
+  activo:
+    fps: 3
+    imgsz: 640
+    margen_crop: 0.20
+    max_crops: 3
+    # Segunda opinion a otra escala. La sensibilidad del modelo NO es monotona
+    # con imgsz, asi que una sola escala siempre deja casos fuera: en Video5 el
+    # cuadro completo @960 daba 0.658 y @1280 0.739, mientras los recortes se
+    # quedaban en 0.63. Una pasada completa periodica cubre ese hueco barato.
+    pasada_completa:
+      activo: true
+      periodo_seg: 2.0
+      imgsz: 960
+
+  # "Detectar y confirmar". Un arma genuinamente visible se detecta en solo el
+  # 14-29% de los cuadros, asi que el detector la ve y la pierde: en Video5 hubo
+  # UNA deteccion a 0.33 en 7.5 s. Tras cualquier deteccion, por debil que sea,
+  # se abre una ventana sobre esa region y se la re-inspecciona ampliada durante
+  # los siguientes segundos. Convierte un acierto esporadico en una traza.
+  seguimiento:
+    activo: true
+    conf_semilla: 0.25         # basta un indicio debil para abrir la zona
+    segundos: 4.0
+    imgsz: 416
+    # TTA (multiescala + volteos). Medido sobre los tramos con arma visible:
+    #     Video5  3/21 -> 9/21     Video2  4/21 -> 6/21     Video3  2/16 -> 4/16 (a >=0.25)
+    # Nunca perjudico, y cuesta solo 1.3-2x. Se aplica SOLO aqui: barrido
+    # amplio barato, confirmacion cara y dirigida.
+    tta: true
+    fps: 2                     # cadencia propia: el TTA es caro, el barrido no
+    factor: 3.0                # lado de la zona = 3x el lado del arma vista
+    lado_min_px: 160
+    max_zonas: 2
+
+# -----------------------------------------------------------------------------
+# VIOLENCIA  (MC3-18 fine-tuned, 2 clases: fight / noFight)
+#
+#   CRITICO: se entreno con 16 frames repartidos sobre TODO el clip (~4.8 s),
+#   es decir ~3.3 fps efectivos. El repo original infiere con skip=2, que da
+#   una ventana de 1.07 s -> ~4.5x fuera de su distribucion de entrenamiento.
+#   stride_sobre_base=3 sobre fps_base=10 reproduce el muestreo original.
+#   NO cambiar sin reentrenar.
+# -----------------------------------------------------------------------------
+violencia:
+  modelo: models/violence_mc3_18.pth
+  habilitado: true
+  frames_secuencia: 16
+  stride_sobre_base: 3         # 10 fps / 3 = 3.33 fps -> ventana de 4.8 s
+  # Cadencia en S2. Importa mas de lo que parece: la senal es MUY sensible a
+  # donde cae la ventana de 4.8 s. En Video5, un barrido a 1 Hz encontro
+  # p_fight=0.977 mientras el pipeline, evaluando cada 2 s, se quedo en 0.75 --
+  # justo por debajo del umbral. La ventana buena existia y la saltabamos.
+  periodo_seg: 1.0
+  # CADENCIA EN S1. Critico: si la violencia solo corriera en S2, quedaria
+  # detras de la compuerta "arma o cinematica". En Video5 (pistola apuntando a
+  # un empleado) fallaron las dos, nunca se llego a S2, y el sistema emitio
+  # CERO eventos -- pese a que un barrido incondicional muestra que el modelo
+  # alcanzaba p_fight=0.977 en ese video. Corriendo tambien en S1 desaparece
+  # ese punto unico de fallo, por 0.11 s/s.
+  periodo_s1_seg: 4.0
+  umbral_fight: 0.75           # absoluto, usado como respaldo
+
+  # Umbral RELATIVO. Medido sobre los 5 videos de prueba, el modelo dio
+  # p50 = 0.977 en 49 ventanas: un numero fijo no sirve contra un modelo tan
+  # sesgado al alza. Pero SI discrimina en relativo -- Video2 fue de 0.234 en
+  # calma a 0.977 en la agresion. Asi que se aprende la linea base de esta
+  # camara (solo de tramos en S1, sin senal de riesgo) y se alerta por
+  # desviacion. Hasta juntar `muestras_min` manda el umbral absoluto, asi que
+  # en clips cortos esto no llega a activarse: es una funcion de operacion
+  # continua, no de prueba.
+  umbral_relativo:
+    activo: true
+    percentil: 90
+    margen: 0.04
+    muestras_min: 40
+    ventana: 600
+
+  # 'centro'   = center-crop del cuadro, fiel al entrenamiento
+  # 'personas' = recorte alrededor del grupo de personas (encuadra la accion,
+  #              y hace la senal atribuible espacialmente)
+  recorte: centro
+  comparar_ambos: true         # calcula TAMBIEN el otro y lo registra en el CSV,
+                               # para poder compararlos con video propio en Fase 3
+
+# -----------------------------------------------------------------------------
+# CINEMATICA  (sin red neuronal: sale de los tracks de ByteTrack)
+#   Cubre forcejeo y SOMETIMIENTO, que es donde MC3-18 falla por diseno:
+#   fue entrenado para 'fight', y un atraco con sumision no tiene pelea.
+# -----------------------------------------------------------------------------
+# -----------------------------------------------------------------------------
+# POSE  (YOLOv8n-pose, 17 puntos clave por persona)
+#
+#   Una pistola mide 20-40 px sobre CCTV y solo se detecta en el 14-29% de los
+#   cuadros. La POSTURA de apuntar mide cientos de pixeles. Esto reconoce el
+#   ACTO de apuntar sin necesidad de ver el arma.
+#
+#   Y cubre lo que RESUMEN seccion 2 pide y ningun modelo actual daba:
+#   "intimidacion fisica o sometimiento".
+# -----------------------------------------------------------------------------
+pose:
+  activo: true
+  conf_keypoint: 0.5         # por debajo, el punto clave no es fiable
+  extension_min: 0.88        # dist(hombro,muneca) / (brazo+antebrazo); 1.0 = recto
+  alejamiento_factor: 1.15   # la muneca debe estar lejos del torso, en anchos de hombro
+  radio_apuntado: 0.9        # el rayo debe pasar a < 0.9 anchos de la caja del apuntado
+  alcance_max_factor: 3.0    # alcance maximo, en alturas de la caja del que apunta
+  # Cuanto debe superar la muneca al hombro, en alturas de caja. Medido sobre
+  # los videos: la mediana normal es -0.16 a -0.27 (muneca por DEBAJO del
+  # hombro) y los picos reales de mano alzada llegan a +0.28.
+  margen_manos: 0.10
+  # Una sola mano alzada basta. Exigir las dos era irreal: en Video5 la victima
+  # se queda paralizada tras el mostrador sin levantarlas. El brazo que apunta
+  # queda excluido del conteo, asi que no se confunde al agresor con la victima.
+  manos_min: 1
+  sostenido_min_seg: 0.5     # a 5 fps son ~3 muestras: filtra el parpadeo sin perder el gesto
+  # Uno apuntando y otro con las manos arriba, a la vez: eso ES un atraco a
+  # mano armada aunque el arma nunca se vea. Con esto en true, basta por si solo
+  # para emitir possible_robbery.
+  amenaza_como_atraco: true
+
+cinematica:
+  activo: true
+  proximidad_factor: 1.5       # distancia entre centros < 1.5x ancho medio de caja
+  proximidad_min_seg: 1.0
+  # Medido sobre los videos de prueba, la velocidad p95 real va de 0.21 a 1.29
+  # alturas-de-caja/s. El piso de 1.2 estaba POR ENCIMA de casi todo lo
+  # observado: la senal de agitacion no se activo ni una vez en 6 videos, y
+  # como el piso dominaba, el percentil adaptativo nunca llegaba a usarse.
+  percentil_agitacion: 99
+  umbral_velocidad_min: 0.6
+  ventana_baseline: 3000
+  muestras_baseline_min: 1000  # por debajo de esto manda el piso: en un clip
+                               # corto que es todo evento, no hay "normal" que
+                               # aprender y el percentil se autoanula
+  aspecto_delta: 0.25          # caida brusca de alto/ancho: caida, agacharse, manos arriba
+  sostenido_min_seg: 0.6
+
+# -----------------------------------------------------------------------------
+# FUSION -> evento (contrato de RESUMEN seccion 13)
+# -----------------------------------------------------------------------------
+fusion:
+  ventana_decision_seg: 5.0
+  evaluar_cada_seg: 1.0
+  atendientes_fijos: 1         # "siempre hay 1 persona atendiendo" -> atacantes = pc - 1
+  cooldown_seg: 30             # no repetir el mismo evento; una escalada si pasa
+  peso_confianza:
+    arma: 0.6
+    violencia: 0.4
+
+evidencia:
+  pre_segundos: 10
+  post_segundos: 5
+  fps_clip: 10
+
+# Opcional y MANUAL. Solo rellena el campo `zone` del evento; no participa
+# en ninguna decision. Ejemplo:
+#   caja: "100,100 500,100 500,400 100,400"
+zonas: {}
+
+identidad:
+  business_id: business-001
+  camera_id: cam-01
+
+salida:
+  dir_videos: videos/salida
+  dir_eventos: eventos
+  guardar_video_anotado: true
+  guardar_csv: true
